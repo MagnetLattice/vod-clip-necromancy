@@ -126,14 +126,16 @@ def download_clips_and_calculate_chains(offsetclipsfile, workingfolder, outfname
       if check_unlisted:
         req = None #set req to None for logic
         #first, check for clips between the last known clip's start time and the next clip that aren't listed. note: offset times are always even numbers
+        timestop = (maxtime if offsetclips.loc[offsetclips['offset']>currenttime].empty else offsetclips.loc[offsetclips.loc[offsetclips['offset']>currenttime,'offset'].idxmin(),'offset']) #stop at the next known time, or the maxtime if there is none
         if currentclip is None:
           timestart = int(currenttime)-int(currenttime)%2+2 #start from 2 seconds after the current time if there is no clip to get the start time from
+          timerange = list(reversed(range(timestart, int(currenttime - currenttime%2), 2))) + list(range(int(currenttime - currenttime%2), timestop, 2)) #start right before currenttime, go back until hitting starttime, then go forward until stoptime
         else:
           timestart = currentclip.offset+2 #otherwise, start from 2 seconds after the start of the current clip
+          timerange = range(timestart, timestop, 2) #go in order from timestart to timestop
         
-        timestop = (maxtime if offsetclips.loc[offsetclips['offset']>currenttime].empty else offsetclips.loc[offsetclips.loc[offsetclips['offset']>currenttime,'offset'].idxmin(),'offset']) #stop at the next known time, or the maxtime if there is none
         print('timestart '+str(timestart)+', timestop '+str(timestop)) #tmp
-        for timecheck in range(timestart, timestop, 2): #for each time every 2 seconds between the times
+        for timecheck in timerange: #for each time every 2 seconds between the times
           print('timecheck: '+str(timecheck)) #tmp
           for downloadprefix in prefixes: #for each prefix
             if (req is not None) and (req.ok): #if the previous one worked
