@@ -7,16 +7,19 @@ import cv2
 from pydub import AudioSegment, silence
 from time import time
 import requests
+import shutil
 
 #Setup:
 #full path of originally downloaded full CSV file from https://www.twitchanz.com/clips/ , start with the day of the VOD and go 60 days after then.
-fpath = r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\2021-01-05 to 2021-03-08 - Tubbo Clips.csv" #r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\2020-09-01 to 2020-11-30 - Tubbo Clips.csv"
-chosenvodid = 40642263740
+fpath = r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\2020-09-01 to 2020-11-30 - Tubbo Clips.csv" #r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\2021-01-05 to 2021-03-08 - Tubbo Clips.csv" #r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\2021-01-06-to-2021-03-07 DropsByPonk_clips.csv"
+#fpath = r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\original csv\2020-06-20 to 2020-08-31 DropsByPonk_clips.csv"
+chosenvodid = 560960706 
 
 #full path to folder where the clips should be saved
-outputfolderpath = r"D:\Videos\MCYT\DSMP\Necromancy\2021-01-06 Tubbo Necromancy"
-outputtitle = "2021-01-06 - Tubbo Reconstruction - Dream SMP - FIGHTING TO SAVE LMANBURG!"
-
+outputfolderpath = r"D:\Videos\MCYT\DSMP\Necromancy\2020-09-08 Tubbo Necromancy"
+outputtitle = "2020-09-08 Tubbo Restoration - Dream SMP MAKING GAMBLING"
+endtime = None # last time in seconds to include in restoration, put None by default
+checkbetween = True #whether to have it check seconds between ones listed in CSV, usually default True
 
 
 
@@ -94,25 +97,75 @@ def make_time_offset_clips_csv(offsetclips, outputfolderpath, chosenvodid):
 
 
 
-def download_clips_and_calculate_chains(offsetclips, workingfolder, outfname, starttime=0, maxtime=None):
+def download_clips_and_calculate_chains(offsetclipsfile, workingfolder, outfname, starttime=0, maxtime=None, check_unlisted=True):
+  offsetclips = pd.read_csv(offsetclipsfile)
+  
   if maxtime is None:
     maxtime = offsetclips['end_offset'].max()
   
   currenttime = starttime #point in time to seek from
-  currentclip = None #
+  currentclip = None
   chain_position = 0 #count of how many clips are in a chain to combine
   clips_df = pd.DataFrame(index=offsetclips.index, columns=['chain_position','filename','start_offset','end_offset','ss','to','note']) #store the chains of clips and how to combine
   df_ind = 0 #track position in clips_df
   audio1 = os.path.join(workingfolder,'audio1.mp3'); audio2 = os.path.join(workingfolder,'audio2.mp3') #constant paths for temporary audio files
+  downloadprefix=offsetclips.iloc[0].download_url.split('-offset-')[0]+'-offset-' #prefix of download urls
   
   while (currenttime < maxtime):
+    print('current time: '+str(currenttime)) #tmp
+    tic() #tmp
     #print(str(df_ind)+' '+str(chain_position))
     #look for the last clip that overlaps the current time
     overlapclips = offsetclips.loc[(offsetclips['offset']<=currenttime)&(offsetclips['end_offset']>currenttime)]
     if overlapclips.empty: #if there are no clips that overlap with the current time
-      currenttime = offsetclips.loc[offsetclips.loc[offsetclips['offset']>currenttime,'offset'].idxmin(),'offset'] #go to the start time of first clip after the current time
-      currentclip = None #no existing clip to check overlap with
-      chain_position = 0 #start a new chain of clips
+      if check_unlisted:
+        req = None #set req to None for logic
+        #first, check for clips between the last known clip's start time and the next clip that aren't listed. note: offset times are always even numbers
+        if currentclip is None:
+          timestart = int(currenttime)-int(currenttime)%2+2 #start from 2 seconds after the current time if there is no clip to get the start time from
+        else:
+          timestart = currentclip.offset+2 #otherwise, start from 2 seconds after the start of the current clip
+        
+        timestop = offsetclips.loc[offsetclips.loc[offsetclips['offset']>currenttime,'offset'].idxmin(),'offset'] #stop at the next known time
+        print('timestart '+str(timestart)+', timestop '+str(timestop)) #tmp
+        for timecheck in range(timestart, timestop, 2): #for each time every 2 seconds between the times
+          print('timecheck: '+str(timecheck)) #tmp
+          req = requests.get(downloadprefix+str(timecheck)+'.mp4') #try to download the clip
+          if req.ok: #if it succeeds, break the loop. this will be detected in overlapclips next time
+            print('found clip at '+str(timecheck)) #tmp
+            #save the download
+            with open(os.path.join(workingfolder, downloadprefix.split('/')[-1]+str(timecheck)+'.mp4'), 'wb') as fdl:
+              _ = fdl.write(req.content)
+            #add an entry for the new clip in the chain
+            offsetclips.loc[offsetclips.shape[0]] = offsetclips.iloc[0] #copy structure from first one
+            offsetclips.loc[offsetclips.shape[0]-1,['id','creator_name','title','view_count','gamename','created_at','url','thumbnail_url']] = '' #set unknown information to blank
+            offsetclips.loc[offsetclips.shape[0]-1,['download_url','filename','offset','duration']] = [downloadprefix+str(timecheck)+'.mp4', downloadprefix.split('/')[-1]+str(timecheck)+'.mp4', timecheck, get_clip_duration(downloadprefix+str(timecheck)+'.mp4')]
+            offsetclips.loc[offsetclips.shape[0]-1,'end_offset'] = timecheck+offsetclips.loc[offsetclips.shape[0]-1,'duration']
+            offsetclips = offsetclips.loc[~offsetclips.duplicated('download_url')].sort_values('offset')
+            offsetclips.to_csv(offsetclipsfile,index=False) #write new clips to file
+            if timecheck > currenttime: #if the clip times do not overlap, then there is not a clip between the currentclip and the new clip
+              print('clip does not overlap at '+str(timecheck)) #tmp
+              currenttime = timecheck #the found clip should be next and does not overlap, so go to its start time
+              currentclip = None #no existing clip to check overlap with
+              chain_position = 0 #start a new chain of clips
+            
+            if (offsetclips.loc[offsetclips.offset==timecheck,'end_offset'].iloc[0]) <= currenttime: #if the new clip's end time is not later than the currenttime, it's not progress
+              print('clip is not improvement at '+str(timecheck)) #tmp
+              req = None #don't use this one
+            else:
+              break #break this loop of checking times
+        
+        if (req is None) or (not req.ok): #couldn't find an unlisted time in between
+          print('not found') #tmp
+          currenttime = timestop #go to the start time of first listed clip after the current time
+          currentclip = None #no existing clip to check overlap with
+          chain_position = 0 #start a new chain of clips
+      
+      else: #not check_unlisted
+        currenttime = offsetclips.loc[offsetclips.loc[offsetclips['offset']>currenttime,'offset'].idxmin(),'offset'] #go to the start time of first clip after the current time
+        currentclip = None #no existing clip to check overlap with
+        chain_position = 0 #start a new chain of clips
+    
     else: #if there are clips that overlap with the current time
       if currentclip is None: #if there is no existing clip to check overlap with,
         currentclip = overlapclips.loc[overlapclips['end_offset'].idxmax()] #take the overlapping clip with the latest end time
@@ -124,6 +177,7 @@ def download_clips_and_calculate_chains(offsetclips, workingfolder, outfname, st
         
         currenttime = currentclip.end_offset #update the current time to the end of the current clip
         clips_df.loc[df_ind,['chain_position', 'filename', 'start_offset', 'end_offset']] = [chain_position, fname, currentclip.offset, currenttime] #add to chain
+        clips_df.to_csv(outfname,index=False) #write current progress on chains
         chain_position +=1 #look for another clip to chain with it next
         df_ind += 1 #move to write in the next location
       else: #if there is an existing clip to check overlap with,
@@ -144,6 +198,7 @@ def download_clips_and_calculate_chains(offsetclips, workingfolder, outfname, st
               currenttime = currentclip.end_offset 
               chain_position = 0 #start a new chain
               clips_df.loc[df_ind,['chain_position', 'filename', 'start_offset', 'end_offset', 'note']] = [chain_position, newfname, currentclip.offset, currentclip.end_offset, 'duplicated frame match'] #add to new chain
+              clips_df.to_csv(outfname,index=False) #write current progress on chains
               chain_position = 1 #look for another clip to chain with it next
               df_ind += 1 #move to write in the next location
               flag_match = True #a frame match was found
@@ -159,6 +214,7 @@ def download_clips_and_calculate_chains(offsetclips, workingfolder, outfname, st
               currentclip = newclip; fname=newfname #update the current clip to the new clip
               currenttime = currentclip.end_offset 
               clips_df.loc[df_ind,['chain_position', 'filename', 'start_offset', 'end_offset', 'ss']] = [chain_position, newfname, currentclip.offset, currentclip.end_offset, sec_quiet] #add to chain
+              clips_df.to_csv(outfname,index=False) #write current progress on chains
               chain_position +=1 #look for another clip to chain with it next
               df_ind += 1 #move to write in the next location
               flag_match = True #a frame match was found
@@ -168,10 +224,12 @@ def download_clips_and_calculate_chains(offsetclips, workingfolder, outfname, st
           currenttime = offsetclips.loc[offsetclips.loc[offsetclips['offset']>currenttime,'offset'].idxmin(),'offset'] #go to the start time of first clip after the current time
           currentclip = None #no existing clip to check overlap with
           chain_position = 0 #start a new chain of clips
+    
+    toc() #tmp
   
   
   clips_df = clips_df.loc[:df_ind-1] #cut down to only the clips that were actually used
-  clips_df.to_csv(outfname,index=False)
+  clips_df.to_csv(outfname,index=False) #write final chains at the end
 
 
 
@@ -179,7 +237,9 @@ def make_clip_chains(clips_df, folder_clips, folder_chains):
   chain_starts = clips_df.loc[clips_df['chain_position']==0].index.to_list() + [clips_df.shape[0]]
   for num_chain in range(len(chain_starts)-1):
     chain = clips_df.loc[chain_starts[num_chain]:(chain_starts[num_chain+1]-1)] #get all clips in current chain
+    
     command = 'ffmpeg' #start assembling command
+    #note: yes I want to reencode even if it's just one clip in the chain because otherwise sometimes it does something weird
     for clip in chain.itertuples(index=False, name='clip'): #add specification of which part of each clip to include
       command += [' -ss '+str(clip.ss),''][pd.isna(clip.ss)]+[' -to '+str(clip.to),''][pd.isna(clip.to)]+ ' '.join(['','-i','"'+clip.filename+'"'])
     
@@ -237,28 +297,28 @@ def combine_all_clip_chains_1s_gaps(folder_chains, outfname):
 #read clip info
 #note: eventually will need better regexes for more recent clips because the formatting of offset clips changed.
 
-fullclipcsv = pd.read_csv(fpath)
-offsetclipcsv = fullclipcsv.loc[fullclipcsv['filename'].str.contains('offset')].reset_index(drop=True)
-offsetclipcsv[['vod','offset']] = offsetclipcsv['filename'].str.split('-offset-', expand=True)
-offsetclipcsv['vod'] = offsetclipcsv['vod'].str.removeprefix('vod-').astype(np.int64)
-offsetclipcsv['offset'] = offsetclipcsv['offset'].str.removesuffix('.mp4').astype(np.int64)
+if not os.path.isfile(os.path.join(outputfolderpath,str(chosenvodid)+' Offset Clips.csv')): #if the offset clips csv does not already exist, get material for it
+  fullclipcsv = pd.read_csv(fpath)
+  offsetclipcsv = fullclipcsv.loc[fullclipcsv['filename'].str.contains('offset')].reset_index(drop=True)
+  offsetclipcsv[['vod','offset']] = offsetclipcsv['filename'].str.split('-offset-', expand=True)
+  offsetclipcsv['vod'] = offsetclipcsv['vod'].str.removeprefix('vod-').astype(np.int64)
+  offsetclipcsv['offset'] = offsetclipcsv['offset'].str.removesuffix('.mp4').astype(np.int64)
+  
+  offsetclips = offsetclipcsv.loc[offsetclipcsv['vod']==chosenvodid].sort_values('offset').reset_index(drop=True)
+  offsetclips = offsetclips.loc[~offsetclips.duplicated('download_url',keep='first')].reset_index(drop=True)
 
-offsetclips = offsetclipcsv.loc[offsetclipcsv['vod']==chosenvodid].sort_values('offset').reset_index(drop=True)
-offsetclips = offsetclips.loc[~offsetclips.duplicated('download_url',keep='first')].reset_index(drop=True)
+os.makedirs(outputfolderpath, exist_ok=True) #make output folder if it doesn't exist
 
-if not os.path.exists(outputfolderpath):
-  os.mkdir(outputfolderpath)
+os.makedirs(os.path.join(outputfolderpath,'rawclips'), exist_ok=True) #make raw clips folder in output folder if it doesn't exist
 
-if not os.path.exists(os.path.join(outputfolderpath,'rawclips')):
-  os.mkdir(os.path.join(outputfolderpath,'rawclips'))
-
-if not os.path.exists(os.path.join(outputfolderpath,'chains')):
-  os.mkdir(os.path.join(outputfolderpath,'chains'))
+os.makedirs(os.path.join(outputfolderpath,'chains'), exist_ok=True) #make chains folder in output folder if it doesn't exist
 
 
 tic()
-tic(); make_time_offset_clips_csv(offsetclips, outputfolderpath, chosenvodid); toc('to create offset clips csv')
-tic(); download_clips_and_calculate_chains(offsetclips=pd.read_csv(os.path.join(outputfolderpath,str(chosenvodid)+' Offset Clips.csv')), workingfolder=os.path.join(outputfolderpath,'rawclips'), outfname=os.path.join(outputfolderpath,str(chosenvodid)+'_clip_chains.csv'), starttime=0, maxtime=None); toc('to download clips and calculate chains')
+if not os.path.isfile(os.path.join(outputfolderpath,str(chosenvodid)+' Offset Clips.csv')): #if the offset clips csv does not already exist, make it
+  tic(); make_time_offset_clips_csv(offsetclips, outputfolderpath, chosenvodid); toc('to create offset clips csv')
+
+tic(); download_clips_and_calculate_chains(offsetclipsfile=os.path.join(outputfolderpath,str(chosenvodid)+' Offset Clips.csv'), workingfolder=os.path.join(outputfolderpath,'rawclips'), outfname=os.path.join(outputfolderpath,str(chosenvodid)+'_clip_chains.csv'), starttime=0, maxtime=endtime, check_unlisted=checkbetween); toc('to download clips and calculate chains')
 tic(); make_clip_chains(clips_df=pd.read_csv(os.path.join(outputfolderpath,str(chosenvodid)+'_clip_chains.csv')), folder_clips=os.path.join(outputfolderpath,'rawclips'), folder_chains=os.path.join(outputfolderpath,'chains')); toc('to make clip chains')
 tic(); combine_all_clip_chains_1s_gaps(folder_chains=os.path.join(outputfolderpath,'chains'), outfname=os.path.join(outputfolderpath,outputtitle+'.mp4')); toc('to combine clip chains to a single video')
 toc('total')
