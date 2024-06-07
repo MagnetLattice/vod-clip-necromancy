@@ -11,14 +11,14 @@ import shutil
 
 #Setup:
 #full path of originally downloaded full CSV file from https://www.twitchanz.com/clips/ , start with the day of the VOD and go 60 days after then.
-fpath = r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\2020-09-01 to 2020-11-30 - Tubbo Clips.csv" #r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\2021-01-05 to 2021-03-08 - Tubbo Clips.csv" #r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\2021-01-06-to-2021-03-07 DropsByPonk_clips.csv"
-#fpath = r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\original csv\2020-06-20 to 2020-08-31 DropsByPonk_clips.csv"
-chosenvodid = 560960706 
+#fpath = r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\2020-09-01 to 2020-11-30 - Tubbo Clips.csv" #r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\2021-01-05 to 2021-03-08 - Tubbo Clips.csv" #r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\2021-01-06-to-2021-03-07 DropsByPonk_clips.csv"
+fpath = r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\original csv\2020-06-20 to 2020-08-31 DropsByPonk_clips.csv"
+chosenvodid = 38803939680 
 
 #full path to folder where the clips should be saved
-outputfolderpath = r"D:\Videos\MCYT\DSMP\Necromancy\2020-09-08 Tubbo Necromancy"
-outputtitle = "2020-09-08 Tubbo Restoration - Dream SMP MAKING GAMBLING"
-endtime = None # last time in seconds to include in restoration, put None by default
+outputfolderpath = r"D:\Videos\MCYT\DSMP\Necromancy\2020-06-21-A Ponk Necromancy"
+outputtitle = "2020-06-21-A Ponk Restoration - Minecraft Dream Team Survival!"
+endtime = 3900 # last time in seconds to include in restoration, put None by default
 checkbetween = True #whether to have it check seconds between ones listed in CSV, usually default True
 
 
@@ -126,7 +126,7 @@ def download_clips_and_calculate_chains(offsetclipsfile, workingfolder, outfname
         else:
           timestart = currentclip.offset+2 #otherwise, start from 2 seconds after the start of the current clip
         
-        timestop = offsetclips.loc[offsetclips.loc[offsetclips['offset']>currenttime,'offset'].idxmin(),'offset'] #stop at the next known time
+        timestop = (maxtime if offsetclips.loc[offsetclips['offset']>currenttime].empty else offsetclips.loc[offsetclips.loc[offsetclips['offset']>currenttime,'offset'].idxmin(),'offset']) #stop at the next known time, or the maxtime if there is none
         print('timestart '+str(timestart)+', timestop '+str(timestop)) #tmp
         for timecheck in range(timestart, timestop, 2): #for each time every 2 seconds between the times
           print('timecheck: '+str(timecheck)) #tmp
@@ -318,7 +318,7 @@ tic()
 if not os.path.isfile(os.path.join(outputfolderpath,str(chosenvodid)+' Offset Clips.csv')): #if the offset clips csv does not already exist, make it
   tic(); make_time_offset_clips_csv(offsetclips, outputfolderpath, chosenvodid); toc('to create offset clips csv')
 
-tic(); download_clips_and_calculate_chains(offsetclipsfile=os.path.join(outputfolderpath,str(chosenvodid)+' Offset Clips.csv'), workingfolder=os.path.join(outputfolderpath,'rawclips'), outfname=os.path.join(outputfolderpath,str(chosenvodid)+'_clip_chains.csv'), starttime=0, maxtime=endtime, check_unlisted=checkbetween); toc('to download clips and calculate chains')
-tic(); make_clip_chains(clips_df=pd.read_csv(os.path.join(outputfolderpath,str(chosenvodid)+'_clip_chains.csv')), folder_clips=os.path.join(outputfolderpath,'rawclips'), folder_chains=os.path.join(outputfolderpath,'chains')); toc('to make clip chains')
+#tic(); download_clips_and_calculate_chains(offsetclipsfile=os.path.join(outputfolderpath,str(chosenvodid)+' Offset Clips.csv'), workingfolder=os.path.join(outputfolderpath,'rawclips'), outfname=os.path.join(outputfolderpath,str(chosenvodid)+'_clip_chains.csv'), starttime=0, maxtime=endtime, check_unlisted=checkbetween); toc('to download clips and calculate chains')
+#tic(); make_clip_chains(clips_df=pd.read_csv(os.path.join(outputfolderpath,str(chosenvodid)+'_clip_chains.csv')), folder_clips=os.path.join(outputfolderpath,'rawclips'), folder_chains=os.path.join(outputfolderpath,'chains')); toc('to make clip chains')
 tic(); combine_all_clip_chains_1s_gaps(folder_chains=os.path.join(outputfolderpath,'chains'), outfname=os.path.join(outputfolderpath,outputtitle+'.mp4')); toc('to combine clip chains to a single video')
 toc('total')
