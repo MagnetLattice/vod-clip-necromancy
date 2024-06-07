@@ -1,85 +1,97 @@
-import cv2
+import pandas as pd
 import numpy as np
 import os
 import time
-
-#Find if a video has a frame identical to the one passed
-#Inputs:
-# frame: the frame we're looking for
-# fname2: filepath to video clip we're looking for the frame in
-#Outputs:
-# -1 if video does not contain frame
-# the frame of overlap in if video does contain frame
-def containsoverlap(frame, videopath):
-  cap = cv2.VideoCapture(videopath)
-  success, image = cap.read()
-  while success: #go through all frames of video
-    if np.array_equal(image,frame):
-      return cap.get(cv2.CAP_PROP_POS_FRAMES)
-    success, image = cap.read()
-  
-  return -1
+import subprocess
+import requests
+from multiprocessing import cpu_count
+from multiprocessing.pool import ThreadPool
 
 
-#Find if a video has a frame identical to any of the ones passed
-#Inputs:
-# frames: the frames we're looking for
-# fname2: filepath to video clip we're looking for the frame in
-#Outputs:
-# -1 if video does not contain any of the frames
-# the index of the frame in the array that matches if it does
-def containsoverlapany(frames, videopath):
-  cap = cv2.VideoCapture(videopath)
-  success, image = cap.read()
-  while success: #go through all frames of video
-    if any(np.array_equal(image, frame) for frame in frames): #if the frame is equal to any of the frames we're looking for
-      return  np.where([np.array_equal(image, frame) for frame in frames])[0][0]
-    success, image = cap.read()
-  
-  return -1
+## Setup things:
+#full path to ffprobe because I have a weird setup, could just set it to 'ffprobe' otherwise
+ffprobepath = 'D:\\Videos\\ffmpeg-5.1.1-essentials_build\\bin\\ffprobe.exe'
+
+#full path of CSV file with at least the columns "download_url", "Start Offset", and "Output Filename", and should be filtered to already all be on the same VOD.
+fpath = 'D:\\Videos\\MCYT\\DSMP\\Necromancy\\2020-09-22 - Tubbo Clip offset format URLs.csv'
+
+#full path to folder where the clips should be saved
+outputfolderpath = 'D:\\Videos\\MCYT\\DSMP\\Necromancy\\2020-09-22 - Tubbo Offset Clips'
 
 
-#Take a folder of videos and a set of before and after videos, and look for videos in the folder that overlap the first frame of the after-videos or the last frame of the before-videos
-#Inputs:
-# knownfolder: folder of the before and after videos (videos with known times)
-# fnamesbefore: list of filenames in the known folder whose last frame we're looking for matches on
-# fnamesafter: list of filenames in the known folder whose first frame we're looking for matches on
-# searchfolder: folder of videos to look for matches in
-#Outputs: list of all videos that match on either of these, and what they matched on
-def findgapfills(knownfolder, fnamesbefore, fnamesafter, searchfolder):
-  frames = [] #list of frames
-  
-  for fname in fnamesbefore: #for each of the videos whose last frame we're looking for matches on
-    cap = cv2.VideoCapture(os.path.join(knownfolder,fname))
-    cap.set(cv2.CAP_PROP_POS_FRAMES, cap.get(cv2.CAP_PROP_FRAME_COUNT)-1) #get to right before the last frame
-    success, frame = cap.read() #get the last frame
-    cap.release()
-    frames.append(frame)
-  
-  for fname in fnamesafter: #for each of the videos whose first frame we're looking for matches on 
-    cap = cv2.VideoCapture(knownfolder+fname)
-    success, frame = cap.read() #get the first frame
-    cap.release()
-    frames.append(frame)
-  
-  knownfiles = fnamesbefore+fnamesafter
-  
-  matches = [] #list to contain any matches found
-  
-  for file in os.listdir(searchfolder): #for each file in the searchfolder
-    if not file.endswith('.mp4'):
-      continue #skip non-mp4s for now
-    
-    print('checking ' + file)
-    t0 = time.time()
-    result = containsoverlapany(frames, os.path.join(searchfolder, file)) #check for any matches
-    print('check time: ' + str(round(time.time()-t0)) + 's')
-    
-    if result != -1: #if there was a match
-      matches.append(fnames[result], file) #save the file name and what it matched on
-      print(file + ' overlaps ' + fnames[result])
-    
-  return matches
+## Get clip information and organize it before downloading:
+clipdf = pd.read_csv(fpath)
 
+#function to get the duration of a clip in seconds from its download url
+def getclipduration(clipurl):
+  return float(subprocess.check_output(' '.join([ffprobepath, '-i', clipurl, '-show_entries', 'format=duration', '-v', 'quiet', '-of', 'csv="p=0"']), stderr=subprocess.STDOUT))
 
-t0 = time.time(); matches = findgapfills(knownfolder = 'D:\\Videos\\Minecraft Videos\\DSMP\\Necromancy\\2020-09-23 - Tubbo Offset Clips', fnamesbefore = ['682424050-00800-RelentlessGeniusDiamondCmonBruh.mp4', '682424050-01740-HedonisticCulturedBubbleteaPanicVis.mp4', '682424050-02958-SpookyUnusualConsoleShadyLulu.mp4', '682424050-03306-SteamyBlatantAlmondJKanStyle.mp4', '682424050-04522-HelpfulLaconicSnakeTwitchRPG.mp4', '682424050-04968-AgreeablePluckyPterodactylDendiFace.mp4', '682424050-05028-InspiringTangiblePorcupineSaltBae.mp4', '682424050-06164-JoyousPunchySalsifyDancingBaby.mp4'], fnamesafter = ['682424050-00832-KitschyAbrasiveGiraffeHoneyBadger.mp4', '682424050-01776-ClumsySolidKuduFeelsBadMan.mp4', '682424050-02994-BlightedDifferentStarThisIsSparta.mp4', '682424050-03356-CrepuscularFineDiamond4Head.mp4', '682424050-04568-CourageousHandsomeMoonHassanChop.mp4', '682424050-05000-ManlyStrangeMooseKeepo.mp4', '682424050-05060-PiliableAbrasiveHawkDogFace.mp4', '682424050-06214-FunnyAbnegateBeaverFunRun.mp4'], searchfolder = 'D:\\Videos\\Minecraft Videos\\DSMP\\Necromancy\\2020-09-23-to-30 Tubbo Nonoffset Clips\\2020-09-23 - The Election FALLOUT'); print('total time: ' + str(round(time.time()-t0)) + ' s')
+t0 = time.time(); clipdf['Duration'] = clipdf['download_url'].apply(getclipduration); print(str(time.time() - t0) + 's to get all clip durations')
+
+#subtract half a second because Twitch audio on the last few frames is bad and clips are usually an integer number of seconds plus a frame
+clipdf['End Offset'] = clipdf['Start Offset']+clipdf['Duration']-0.5
+#
+offsetintervals = pd.IntervalIndex.from_arrays(left=clipdf['Start Offset'], right=clipdf['End Offset'], closed='both')
+
+#setup before loop
+currenttime = 0.0 #time of the end of the clip set constructed thus far
+maxtime = clipdf['End Offset'].max() #maximum time available
+clipset = [] #list of indices of clips to download
+gaps = [] #list of gaps in overlap
+
+#get a minimal set of clips to cover as much time as possible
+t0 = time.time()
+while currenttime < maxtime: #go until as much has been covered as possible
+  #first look for clips that overlap the current last clip
+  overlapclips = clipdf[offsetintervals.contains(currenttime)] #all clips that contain the last time in the clip set constructed
+  if (overlapclips.empty) or (overlapclips['End Offset'].max() == currenttime): #There are no clips overlapping the current time, or all clips overlapping end at the current time
+    gapstart = currenttime
+    currenttime = clipdf[clipdf['Start Offset']>currenttime]['Start Offset'].min() #get the smallest next time available
+    print('Gap from ' + str(gapstart) + ' to ' + str(currenttime))
+    gaps.append([gapstart, currenttime])
+    continue
+  
+  currenttime = overlapclips['End Offset'].max() #new time is the latest end time available from overlapping clips
+  clipset.append(overlapclips[overlapclips['End Offset'] == currenttime].index[-1]) #add the index of the first clip that gives this time
+
+print(str(time.time() - t0) + 's to get clip set')
+print('Gaps: ' + str(gaps))
+gaps = np.asarray(gaps)
+print('Approximate total gap time: ' + str(np.floor(gaps[:,1]-gaps[:,0]).sum().astype(int)) + 's')
+print('Total clips to download: ' + str(len(clipset)))
+
+#organize clip set information for downloading
+clipstodownload = clipdf.iloc[clipset].copy() #just the clips to download
+clipstodownload['Overlap Previous'] = (clipstodownload['End Offset'].shift(1)+0.5-clipstodownload['Start Offset']).fillna(0) #get amount that the start of the new clip should be before the end of the previous clip, negative if there is a gap, to make the manual part faster
+clipstodownload['Output Filename'] = clipstodownload['Output Filename'].str.rstrip('.mp4')+'_' + clipstodownload['Overlap Previous'].apply(np.floor).astype(int).astype(str) + '-' + (((clipstodownload['Overlap Previous'])-(clipstodownload['Overlap Previous'].apply(np.floor)))*60).round().astype(int).astype(str) + '.mp4' #add that amount to the filename so it's visible while editing. Note: changed to include 60ths of second / frames after dash.
+
+clipstodownload.to_csv((outputfolderpath+os.path.sep+'clipdownloadinfo.csv'), index=False)
+
+downloadurls = clipstodownload['download_url'].tolist()
+downloadfnames = (outputfolderpath+os.path.sep+clipstodownload['Output Filename']).tolist()
+
+## Download the clips
+downloadinfo = zip(downloadurls, downloadfnames)
+
+#Function for downloading a clip from a url to a filename, where they are zipped into one argument, args
+def download_from_url(args):
+  t0 = time.time()
+  url, fname = args[0], args[1]
+  try:
+    r = requests.get(url)
+    with open(fname, 'wb') as f:
+      f.write(r.content)
+    return(url, time.time() - t0)
+  except Exception as e:
+    print('Exception in download_from_url():', e)
+
+#Function to download multiple clips from a zipped set of urls and filenames in parallel
+def download_from_url_parallel(args):
+    cpus = cpu_count()
+    results = ThreadPool(cpus - 1).imap_unordered(download_from_url, args)
+    for result in results:
+        print('url:', result[0], 'time (s):', result[1])
+
+#Download clips in parallel
+t0 = time.time(); download_from_url_parallel(downloadinfo); print('total download time (s): ' + str(time.time()-t0))
+
