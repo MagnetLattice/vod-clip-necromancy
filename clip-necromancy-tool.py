@@ -281,7 +281,7 @@ def make_clip_chains(clips_df, folder_chains):
 
 
 
-def combine_all_clip_chains_1s_gaps(folder_chains, outfname):
+def combine_all_clip_chains_1s_gaps(folder_chains, outfname, make_video=True):
   #get chains
   chains = pd.DataFrame(os.listdir(folder_chains),columns=['filename'])
   chains = chains.loc[(chains['filename'].str.endswith('.mp4'))&(chains['filename'].str.startswith('chain_'))].reset_index(drop=True)
@@ -308,6 +308,10 @@ def combine_all_clip_chains_1s_gaps(folder_chains, outfname):
   
   with open(listpath,'w') as f:
     f.writelines('\n'.join(flist))
+  
+  if not make_video: #argument added to allow custom editing of concatlist at the very end
+    print(' '.join(['ffmpeg','-f','concat','-safe','0','-i','"'+listpath+'"','-c','copy','"'+outfname+'"']))
+    return
   
   #run concatenation with copying
   _ = subprocess.run(' '.join(['ffmpeg','-f','concat','-safe','0','-i','"'+listpath+'"','-c','copy','"'+outfname+'"']), capture_output=True, cwd=folder_chains)
