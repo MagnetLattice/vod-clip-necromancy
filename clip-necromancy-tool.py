@@ -143,10 +143,10 @@ def download_clips_and_calculate_chains(offsetclipsfile, workingfolder, outfname
         timestop = (maxtime if offsetclips.loc[offsetclips['offset']>currenttime].empty else offsetclips.loc[offsetclips.loc[offsetclips['offset']>currenttime,'offset'].idxmin(),'offset']) #stop at the next known time, or the maxtime if there is none
         if currentclip is None:
           timestart = int(currenttime)-int(currenttime)%2+2 #start from 2 seconds after the current time if there is no clip to get the start time from
-          timerange = list(reversed(range(timestart, int(currenttime - currenttime%2), 2))) + list(range(int(currenttime - currenttime%2), timestop, 2)) #start right before currenttime, go back until hitting starttime, then go forward until stoptime
+          timerange = range(timestart, timestop, 2) #go in order from timestart to timestop
         else:
           timestart = currentclip.offset+2 #otherwise, start from 2 seconds after the start of the current clip
-          timerange = range(timestart, timestop, 2) #go in order from timestart to timestop
+          timerange = list(reversed(range(timestart, int(currenttime - currenttime%2), 2))) + list(range(int(currenttime - currenttime%2), timestop, 2)) #start right before currenttime, go back until hitting starttime, then go forward until stoptime
         
         print('timestart '+str(timestart)+', timestop '+str(timestop)) #tmp
         print(timerange) #tmp
