@@ -22,7 +22,7 @@ outputfolderpath = r"D:\Videos\MCYT\DSMP\Necromancy\2020-07-01 Ponk Necromancy"
 outputtitle = "2020-07-01 Ponk Restoration - Minecraft but My lemon tree is gone"
 maxtime = 7200 # last time in seconds to include in restoration, put None by default
 checkbetween = True #whether to have it check seconds between ones listed in CSV, usually default True
-
+downloadnonoffsetclips = True #whether you _already have_ a CSV of non-offset-format clips, "nonoffsetclips.csv", to download in the working folder. You must make the folder and the file before running. Copy directly from original clips csv
 
 
 #timing functions
@@ -34,8 +34,6 @@ def tic():
 def toc(txt='', fmt="Elapsed: %s s"):
   print(' '.join(list(filter(None, [fmt,txt]))) % int(time() - _tstart_stack.pop()))
 
-#skipping this for now, might implement later
-#nonoffsetclips = fullclipcsv.loc[(~fullclipcsv['filename'].str.contains('offset')) & (fullclipcsv['title']==offsetclips['title'].mode().iloc[0])].sort_values('created_at').reset_index(drop=True) #get non-offset-format clips with the vod's title
 
 #gets the spot of the start of overlap in the first clip, in seconds
 #new version can handle
@@ -96,6 +94,22 @@ def make_time_offset_clips_csv(offsetclips, offsetclipsfile):
   offsetclips = offsetclips.loc[offsetclips['duration']>0].reset_index(drop=True) #drop ones that failed
   offsetclips['end_offset'] = offsetclips['offset']+offsetclips['duration']
   offsetclips.to_csv(offsetclipsfile,index=False)
+
+
+
+def download_non_offset_clips(workingfolder):
+  if not os.path.isfile(os.path.join(workingfolder, 'nonoffsetclips.csv')):
+    print('Cannot find file: '+os.path.join(workingfolder, 'nonoffsetclips.csv'))
+    return
+  
+  os.makedirs(os.path.join(workingfolder, 'nonoffsetclips'), exist_ok=True) #make folder to contain them
+  nonoffsetclips = pd.read_csv(os.path.join(workingfolder, 'nonoffsetclips.csv'),encoding='cp1252') #read file
+  for clip in nonoffsetclips.itertuples():
+    fname = os.path.join(workingfolder,'nonoffsetclips',clip.created_at.replace(':','-') + ' ' + clip.filename.replace('%7C','-'))
+    if not os.path.exists(fname): #if the clip is not already downloaded
+      req = requests.get(clip.download_url) #download the clip
+      with open(fname, 'wb') as fdl:
+        _ = fdl.write(req.content)
 
 
 
@@ -337,6 +351,9 @@ os.makedirs(os.path.join(outputfolderpath,'chains'), exist_ok=True) #make chains
 tic()
 if not os.path.isfile(offsetclipsfile): #if the offset clips csv does not already exist, make it
   tic(); make_time_offset_clips_csv(offsetclips, offsetclipsfile); toc('to create offset clips csv')
+
+if downloadnonoffsetclips: #if there is a CSV of non-offset-format clips to download
+  tic(); download_non_offset_clips(workingfolder=outputfolderpath); toc('to download non-offset clips')
 
 tic(); download_clips_and_calculate_chains(offsetclipsfile=offsetclipsfile, workingfolder=os.path.join(outputfolderpath,'rawclips'), outfname=chainsfile, starttime=0, maxtime=maxtime, check_unlisted=checkbetween); toc('to download clips and calculate chains')
 tic(); make_clip_chains(clips_df=pd.read_csv(chainsfile), folder_chains=os.path.join(outputfolderpath,'chains')); toc('to make clip chains')
