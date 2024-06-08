@@ -149,6 +149,7 @@ def download_clips_and_calculate_chains(offsetclipsfile, workingfolder, outfname
           timerange = range(timestart, timestop, 2) #go in order from timestart to timestop
         
         print('timestart '+str(timestart)+', timestop '+str(timestop)) #tmp
+        print(timerange) #tmp
         for timecheck in timerange: #for each time every 2 seconds between the times
           print('timecheck: '+str(timecheck)) #tmp
           for downloadprefix in prefixes: #for each prefix
