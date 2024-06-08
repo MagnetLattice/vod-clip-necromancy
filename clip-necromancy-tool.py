@@ -11,8 +11,8 @@ import shutil
 
 #Setup:
 #full path of originally downloaded full CSV file from https://www.twitchanz.com/clips/ , start with the day of the VOD and go 60 days after then.
-#fpath = r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\2020-09-01 to 2020-11-30 - Tubbo Clips.csv" #r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\2021-01-05 to 2021-03-08 - Tubbo Clips.csv" #r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\2021-01-06-to-2021-03-07 DropsByPonk_clips.csv"
-fpath = r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\original csv\2020-06-20 to 2020-08-31 DropsByPonk_clips.csv"
+#original_clips_csv_path = r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\2020-09-01 to 2020-11-30 - Tubbo Clips.csv" #r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\2021-01-05 to 2021-03-08 - Tubbo Clips.csv" #r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\2021-01-06-to-2021-03-07 DropsByPonk_clips.csv"
+original_clips_csv_path = r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\original csv\2020-06-20 to 2020-08-31 DropsByPonk_clips.csv"
 #at least one of these two must have a value:
 chosenstreamid = 39041624752 #chosenstreamid = 38788861632 #set to None if not using. This will usually match twitchtracker
 chosenvodid = 667128237 #set to None if not using. Set this if the vod id is different. I don't know where you find these except by looking at clips.
@@ -320,7 +320,7 @@ offsetclipsfile = os.path.join(outputfolderpath,('' if chosenstreamid is None el
 chainsfile = os.path.join(outputfolderpath,('' if chosenstreamid is None else (str(chosenstreamid)+'_'))+('' if chosenvodid is None else ('vod-'+str(chosenvodid)+'_'))+'clip_chains.csv')
 
 if not os.path.isfile(offsetclipsfile): #if the offset clips csv does not already exist, get material for it
-  fullclipcsv = pd.read_csv(fpath)
+  fullclipcsv = pd.read_csv(original_clips_csv_path)
   offsetclipcsv = fullclipcsv.loc[fullclipcsv['filename'].str.contains('offset')].reset_index(drop=True)
   offsetclipcsv[['vod','offset']] = offsetclipcsv['filename'].str.split('-offset-', expand=True)
   offsetclipcsv['offset'] = offsetclipcsv['offset'].str.removesuffix('.mp4').astype(np.int64)
