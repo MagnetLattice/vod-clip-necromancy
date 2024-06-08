@@ -90,9 +90,13 @@ def get_clip_duration(clipurl):
 
 #make offset clips CSV ahead of time, takes about 12 minutes for 1436 clips?
 def make_time_offset_clips_csv(offsetclips, offsetclipsfile):
-  offsetclips['duration'] = offsetclips['download_url'].apply(get_clip_duration)
-  offsetclips = offsetclips.loc[offsetclips['duration']>0].reset_index(drop=True) #drop ones that failed
-  offsetclips['end_offset'] = offsetclips['offset']+offsetclips['duration']
+  if offsetclips is None:
+    offsetclips = pd.DataFrame(columns=['id', 'broadcaster_name', 'creator_name', 'title', 'view_count', 'gamename', 'created_at', 'url', 'thumbnail_url', 'download_url', 'filename', 'vod', 'offset', 'duration', 'end_offset'])
+  else:
+    offsetclips['duration'] = offsetclips['download_url'].apply(get_clip_duration)
+    offsetclips = offsetclips.loc[offsetclips['duration']>0].reset_index(drop=True) #drop ones that failed
+    offsetclips['end_offset'] = offsetclips['offset']+offsetclips['duration']
+  
   offsetclips.to_csv(offsetclipsfile,index=False)
 
 
@@ -126,8 +130,8 @@ def download_clips_and_calculate_chains(offsetclipsfile, workingfolder, outfname
   df_ind = 0 #track position in clips_df
   audio1 = os.path.join(workingfolder,'audio1.mp3'); audio2 = os.path.join(workingfolder,'audio2.mp3') #constant paths for temporary audio files
   #get prefixes of download urls
-  streamdownloadprefix=(None if ((chosenstreamid is None) or (not str(chosenstreamid) in offsetclips['vod'].unique())) else offsetclips.loc[offsetclips['vod']==str(chosenstreamid)].iloc[0].download_url.split('-offset-')[0]+'-offset-')
-  voddownloadprefix=(None if ((chosenvodid is None) or (not 'vod-'+str(chosenvodid) in offsetclips['vod'].unique())) else offsetclips.loc[offsetclips['vod']=='vod-'+str(chosenvodid)].iloc[0].download_url.split('-offset-')[0]+'-offset-')
+  streamdownloadprefix=(None if (chosenstreamid is None) else 'https://clips-media-assets2.twitch.tv/' +str(chosenstreamid)+ '-offset-')
+  voddownloadprefix=(None if (chosenvodid is None) else 'https://clips-media-assets2.twitch.tv/vod-' +str(chosenvodid)+ '-offset-')
   prefixes = [downloadprefix for downloadprefix in [streamdownloadprefix, voddownloadprefix] if downloadprefix is not None]
   
   while (currenttime < maxtime):
@@ -254,7 +258,6 @@ def download_clips_and_calculate_chains(offsetclipsfile, workingfolder, outfname
     toc() #tmp
   
   
-  clips_df = clips_df.loc[:df_ind-1] #cut down to only the clips that were actually used
   clips_df.to_csv(outfname,index=False) #write final chains at the end
 
 
@@ -338,15 +341,18 @@ def print_reconstruction_info(chainsfile, outfname, maxtime):
 offsetclipsfile = os.path.join(outputfolderpath,('' if chosenstreamid is None else (str(chosenstreamid)+' '))+('' if chosenvodid is None else ('vod-'+str(chosenvodid)+' '))+'Offset Clips.csv')
 chainsfile = os.path.join(outputfolderpath,('' if chosenstreamid is None else (str(chosenstreamid)+'_'))+('' if chosenvodid is None else ('vod-'+str(chosenvodid)+'_'))+'clip_chains.csv')
 
-if not os.path.isfile(offsetclipsfile): #if the offset clips csv does not already exist, get material for it
-  fullclipcsv = pd.read_csv(original_clips_csv_path)
-  offsetclipcsv = fullclipcsv.loc[fullclipcsv['filename'].str.contains('offset')].reset_index(drop=True)
-  offsetclipcsv[['vod','offset']] = offsetclipcsv['filename'].str.split('-offset-', expand=True)
-  offsetclipcsv['offset'] = offsetclipcsv['offset'].str.removesuffix('.mp4').astype(np.int64)
-  
-  #get only clips that match the chosenstreamid or chosenvodid
-  offsetclips = offsetclipcsv.loc[((False if chosenstreamid is None else offsetclipcsv['vod']==str(chosenstreamid)) | (False if chosenvodid is None else offsetclipcsv['vod']=='vod-'+str(chosenvodid)))].sort_values('offset').reset_index(drop=True)
-  offsetclips = offsetclips.loc[~offsetclips.duplicated('download_url',keep='first')].reset_index(drop=True)
+if (not os.path.isfile(offsetclipsfile)): #if the offset clips csv does not already exist, and the source file does, get material for it
+  if original_clips_csv_path is None: 
+    offsetclips = None
+  else:
+    fullclipcsv = pd.read_csv(original_clips_csv_path)
+    offsetclipcsv = fullclipcsv.loc[fullclipcsv['filename'].str.contains('offset')].reset_index(drop=True)
+    offsetclipcsv[['vod','offset']] = offsetclipcsv['filename'].str.split('-offset-', expand=True)
+    offsetclipcsv['offset'] = offsetclipcsv['offset'].str.removesuffix('.mp4').astype(np.int64)
+    
+    #get only clips that match the chosenstreamid or chosenvodid
+    offsetclips = offsetclipcsv.loc[((False if chosenstreamid is None else offsetclipcsv['vod']==str(chosenstreamid)) | (False if chosenvodid is None else offsetclipcsv['vod']=='vod-'+str(chosenvodid)))].sort_values('offset').reset_index(drop=True)
+    offsetclips = offsetclips.loc[~offsetclips.duplicated('download_url',keep='first')].reset_index(drop=True)
 
 os.makedirs(outputfolderpath, exist_ok=True) #make output folder if it doesn't exist
 os.makedirs(os.path.join(outputfolderpath,'rawclips'), exist_ok=True) #make raw clips folder in output folder if it doesn't exist
@@ -360,9 +366,12 @@ if not os.path.isfile(offsetclipsfile): #if the offset clips csv does not alread
 if downloadnonoffsetclips: #if there is a CSV of non-offset-format clips to download
   tic(); download_non_offset_clips(workingfolder=outputfolderpath); toc('to download non-offset clips')
 
-tic(); download_clips_and_calculate_chains(offsetclipsfile=offsetclipsfile, workingfolder=os.path.join(outputfolderpath,'rawclips'), outfname=chainsfile, starttime=0, maxtime=maxtime, check_unlisted=checkbetween); toc('to download clips and calculate chains')
-tic(); make_clip_chains(clips_df=pd.read_csv(chainsfile), folder_chains=os.path.join(outputfolderpath,'chains')); toc('to make clip chains')
-tic(); combine_all_clip_chains_1s_gaps(folder_chains=os.path.join(outputfolderpath,'chains'), outfname=os.path.join(outputfolderpath,outputtitle+'.mp4')); toc('to combine clip chains to a single video')
-print_reconstruction_info(chainsfile=chainsfile, outfname=os.path.join(outputfolderpath,outputtitle+'.mp4'), maxtime=maxtime)
+tic(); download_clips_and_calculate_chains(offsetclipsfile=offsetclipsfile, workingfolder=os.path.join(outputfolderpath,'rawclips'), outfname=chainsfile, starttime=starttime, maxtime=maxtime, check_unlisted=checkbetween); toc('to download clips and calculate chains')
+if pd.read_csv(chainsfile).empty:
+  print('No clips found, cannot reconstruct video.')
+else:
+  tic(); make_clip_chains(clips_df=pd.read_csv(chainsfile), folder_chains=os.path.join(outputfolderpath,'chains')); toc('to make clip chains')
+  tic(); combine_all_clip_chains_1s_gaps(folder_chains=os.path.join(outputfolderpath,'chains'), outfname=os.path.join(outputfolderpath,outputtitle+'.mp4')); toc('to combine clip chains to a single video')
+  print_reconstruction_info(chainsfile=chainsfile, outfname=os.path.join(outputfolderpath,outputtitle+'.mp4'), maxtime=maxtime)
 
 toc('total')
