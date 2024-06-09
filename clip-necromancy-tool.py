@@ -27,6 +27,10 @@ downloadnonoffsetclips = True #whether you _already have_ a CSV of non-offset-fo
 pause_at_end = True
 
 
+
+
+
+
 #timing functions
 _tstart_stack = []
 
@@ -35,6 +39,7 @@ def tic():
 
 def toc(txt='', fmt="Elapsed: %s s"):
   print(' '.join(list(filter(None, [fmt,txt]))) % int(time() - _tstart_stack.pop()))
+
 
 
 #gets the spot of the start of overlap in the first clip, in seconds
@@ -61,9 +66,12 @@ def get_clip_overlap_sec(clip1, clip2):
   return -1, -1, True #Return -1ms and a warning flag if can't find overlap
 
 
+
 def export_clip_audio(clip1, clip2, overlapsec, durationsec):
   subprocess.call(' '.join(['ffmpeg', '-ss', str(overlapsec), '-i', clip1, clip1[:-1]+'3'])) #export mp3 of the first clip starting at the time of first overlap
   subprocess.call(' '.join(['ffmpeg', '-to', str(durationsec), '-i', clip2, clip2[:-1]+'3'])) #export mp3 of the second clip clip through the time of overlap
+
+
 
 #gets a quiet spot in the overlap of two clips' audio, to cut with minimal audio disruption. returns timestamp in ms in the middle of the longest quiet section.
 def get_audio_quiet_sec_overlap(audiofile1, audiofile2):
@@ -82,6 +90,8 @@ def get_audio_quiet_sec_overlap(audiofile1, audiofile2):
   silenceoverlap = silenceoverlap[np.where(np.array(silenceoverlap)[:,2]==max(np.array(silenceoverlap)[:,2]))[0][0]]
   return (silenceoverlap[0]+int(silenceoverlap[2]/2))/1000
 
+
+
 def get_clip_duration(clipurl):
   try:
     duration = float(subprocess.check_output(' '.join(['ffprobe', '-i', clipurl, '-show_entries', 'format=duration', '-v', 'quiet', '-of', 'csv="p=0"']), stderr=subprocess.STDOUT))
@@ -89,6 +99,8 @@ def get_clip_duration(clipurl):
     duration = -1
   finally:
     return duration
+
+
 
 #make offset clips CSV ahead of time, takes about 12 minutes for 1436 clips?
 def make_time_offset_clips_csv(offsetclips, offsetclipsfile):
@@ -335,6 +347,9 @@ def print_reconstruction_info(chainsfile, outfname, maxtime):
   print('')
   print('This is a restoration of the original VOD from approximately {clips:,} clips, and is missing some content (approximately {missingtime:,} seconds total).'.format(clips=clips, missingtime=(maxtime-duration+clips-1)))
   print('')
+
+
+
 
 
 
