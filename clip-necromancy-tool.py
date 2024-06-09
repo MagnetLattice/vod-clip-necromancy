@@ -23,6 +23,7 @@ outputtitle = "2020-07-01 Ponk Restoration - Minecraft but My lemon tree is gone
 maxtime = 7200 # last time in seconds to include in restoration, put None by default
 checkbetween = True #whether to have it check seconds between ones listed in CSV, usually default True
 downloadnonoffsetclips = True #whether you _already have_ a CSV of non-offset-format clips, "nonoffsetclips.csv", to download in the working folder. You must make the folder and the file before running. Copy directly from original clips csv
+pause_at_end = True
 
 
 #timing functions
@@ -258,7 +259,7 @@ def download_clips_and_calculate_chains(offsetclipsfile, workingfolder, outfname
     toc() #tmp
   
   
-  clips_df.to_csv(outfname,index=False) #write final chains at the end
+  clips_df.loc[~clips_df.start_offset.isna()].to_csv(outfname,index=False) #write final chains at the end
 
 
 
@@ -313,6 +314,7 @@ def combine_all_clip_chains_1s_gaps(folder_chains, outfname, make_video=True):
     f.writelines('\n'.join(flist))
   
   if not make_video: #argument added to allow custom editing of concatlist at the very end
+    print('\nFrom "'+folder_chains+'" run this command after making the changes you have chosen to the chain files and concatlist.txt:')
     print(' '.join(['ffmpeg','-f','concat','-safe','0','-i','"'+listpath+'"','-c','copy','"'+outfname+'"']))
     return
   
@@ -371,7 +373,8 @@ if pd.read_csv(chainsfile).empty:
   print('No clips found, cannot reconstruct video.')
 else:
   tic(); make_clip_chains(clips_df=pd.read_csv(chainsfile), folder_chains=os.path.join(outputfolderpath,'chains')); toc('to make clip chains')
-  tic(); combine_all_clip_chains_1s_gaps(folder_chains=os.path.join(outputfolderpath,'chains'), outfname=os.path.join(outputfolderpath,outputtitle+'.mp4')); toc('to combine clip chains to a single video')
-  print_reconstruction_info(chainsfile=chainsfile, outfname=os.path.join(outputfolderpath,outputtitle+'.mp4'), maxtime=maxtime)
+  tic(); combine_all_clip_chains_1s_gaps(folder_chains=os.path.join(outputfolderpath,'chains'), outfname=os.path.join(outputfolderpath,outputtitle+'.mp4'), make_video=not pause_at_end); toc('to combine clip chains to a single video')
+  if not pause_at_end:
+    print_reconstruction_info(chainsfile=chainsfile, outfname=os.path.join(outputfolderpath,outputtitle+'.mp4'), maxtime=maxtime)
 
 toc('total')
