@@ -19,7 +19,6 @@ chosenvodid = 670888160 #set to None if not using. I don't know where you find t
 #full path to folder where the clips should be saved
 outputfolderpath = r"D:\Videos\MCYT\DSMP\Necromancy\2020-07-05 Ponk Restoration"
 streamtitle = "Minecraft but we have Lemonade"
-outputtitle = os.path.basename(outputfolderpath) +' - '+ ''.join([x for x in streamtitle if x.isalnum() or x==' ']).rstrip(' ') #get output vod title with no non-space-or-alphanumeric characters
 starttime = 0 #first time in seconds t oinclude in restoration, put 0 by default
 maxtime = 5280 # last time in seconds to include in restoration, put None by default
 checkbetween = True #whether to have it check seconds between ones listed in CSV, usually default True
@@ -358,6 +357,7 @@ def print_reconstruction_info(chainsfile, outfname, maxtime):
 #run code
 #read clip info
 #note: eventually will need better regexes for more recent clips because the formatting of offset clips changed.
+outputtitle = os.path.basename(outputfolderpath) +' - '+ ''.join([x for x in streamtitle if x.isalnum() or x==' ']).rstrip(' ') #get output vod title with no non-space-or-alphanumeric characters
 offsetclipsfile = os.path.join(outputfolderpath,('' if chosenstreamid is None else (str(chosenstreamid)+' '))+('' if chosenvodid is None else ('vod-'+str(chosenvodid)+' '))+'Offset Clips.csv')
 chainsfile = os.path.join(outputfolderpath,('' if chosenstreamid is None else (str(chosenstreamid)+'_'))+('' if chosenvodid is None else ('vod-'+str(chosenvodid)+'_'))+'clip_chains.csv')
 
