@@ -19,7 +19,7 @@ chosenvodid = 670888160 #set to None if not using. I don't know where you find t
 #full path to folder where the clips should be saved
 outputfolderpath = r"D:\Videos\MCYT\DSMP\Necromancy\2020-07-05 Ponk Restoration"
 streamtitle = "Minecraft but we have Lemonade"
-outputtitle = os.path.basename(outputfolderpath) +' - '+ ''.join([x for x in streamtitle if x.isalnum() or x==' ']) #get output vod title with no non-space-or-alphanumeric characters
+outputtitle = os.path.basename(outputfolderpath) +' - '+ ''.join([x for x in streamtitle if x.isalnum() or x==' ']).rstrip(' ') #get output vod title with no non-space-or-alphanumeric characters
 starttime = 0 #first time in seconds t oinclude in restoration, put 0 by default
 maxtime = 5280 # last time in seconds to include in restoration, put None by default
 checkbetween = True #whether to have it check seconds between ones listed in CSV, usually default True
@@ -292,7 +292,7 @@ def make_clip_chains(clips_df, folder_chains):
     
     command += 'concat=n={}:v=1:a=1[outv][outa]"'.format(chain.shape[0]) #tell it the number of segments, and that there will be one video and audio stream per segment
     command += ' -map "[outv]" -map "[outa]" ' # use the results of the concat filter rather than the streams directly
-    command += '"'+os.path.join(folder_chains,'chain_{}_{}-{}.mp4'.format(str(num_chain).zfill(len(str(len(chain_starts)))), chain['start_offset'].min(), int(chain['end_offset'].max())))+'"' #choose output file name
+    command += '"'+os.path.join(folder_chains,'chain_{}_{}-{}.mp4'.format(str(num_chain).zfill(len(str(len(chain_starts)))), (int(chain['start_offset'].min()) if (not np.isnan(chain['start_offset'].min())) else chain['start_offset'].min()), (int(chain['end_offset'].max()) if (not np.isnan(chain['end_offset'].max())) else chain['end_offset'].max())))+'"' #choose output file name
     
     _ = subprocess.run(command,capture_output=True)
 
@@ -304,10 +304,12 @@ def combine_all_clip_chains_1s_gaps(folder_chains, outfname, make_video=True):
   chains = chains.loc[(chains['filename'].str.endswith('.mp4'))&(chains['filename'].str.startswith('chain_'))].reset_index(drop=True)
   chains[['chain','times']] = chains['filename'].str.lstrip('chain_').str[:-4].str.split('_',expand=True)
   chains[['start_time','end_time']] = chains['times'].str.split('-',expand=True)
-  chains['filename'] = chains['filename']
-  chains[['start_time','end_time']] = chains[['start_time','end_time']].astype(int)
-  chains['gap_before'] = (chains['start_time']-(chains['end_time'].shift(1).fillna(0))).astype(int)
+  #chains['filename'] = chains['filename']
+  chains['start_time']=pd.to_numeric(chains['start_time'],errors='coerce')
+  chains['end_time']=pd.to_numeric(chains['end_time'],errors='coerce')
+  chains['gap_before'] = (chains['start_time']-(chains['end_time'].shift(1).fillna(0)))
   chains.loc[0,'gap_before']=0 #don't add gap before the first chain
+  chains['gap_before'] = chains['gap_before'].fillna(5).astype(int) #fill nan with gaps
   
   #make black filler video
   path_gap = os.path.join(folder_chains,'gap.mp4')
@@ -343,9 +345,9 @@ def combine_all_clip_chains_1s_gaps(folder_chains, outfname, make_video=True):
 
 def print_reconstruction_info(chainsfile, outfname, maxtime):
   duration = int(round(float(subprocess.check_output('ffprobe -i "'+outfname+'" -show_entries format=duration -v quiet -of csv="p=0"', stderr=subprocess.STDOUT))))
-  clips = pd.read_csv(chainsfile).shape[0]
+  clips = pd.read_csv(chainsfile)
   print('')
-  print('This is a restoration of the original VOD from approximately {clips:,} clips, and is missing some content (approximately {missingtime:,} seconds total).'.format(clips=clips, missingtime=(maxtime-duration+clips-1)))
+  print('This is a restoration of the original VOD from approximately {clips:,} clips, and is missing some content (approximately {missingtime_a:,} to {missingtime_b:,} seconds total).'.format(clips=clips.shape[0], missingtime_a=(int(clips.end_offset.max()-duration+clips.shape[0]-1)), missingtime_b=(maxtime-duration+clips.shape[0]-1)))
   print('')
 
 
