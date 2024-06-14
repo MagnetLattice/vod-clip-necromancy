@@ -11,19 +11,19 @@ import shutil
 
 #Setup:
 #full path of originally downloaded full CSV file from https://www.twitchanz.com/clips/ , start with the day of the VOD and go 60 days after then.
-original_clips_csv_path = r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\original csv\2020-06-20 to 2020-08-31 DropsByPonk_clips.csv" #r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\2020-09-01 to 2020-11-30 - Tubbo Clips.csv" #r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\2021-01-05 to 2021-03-08 - Tubbo Clips.csv" #r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\2021-01-06-to-2021-03-07 DropsByPonk_clips.csv"
+original_clips_csv_path = r"D:\Videos\MCYT\DSMP\Necromancy\spreadsheet work\original csv\2020-07-17 to 2020-07-31 Tubbo_clips.csv"
 #at least one of these two must have a value:
-chosenstreamid = 39121241104 #chosenstreamid = 38788861632 #set to None if not using. This will usually match twitchtracker
-chosenvodid = 670888160 #set to None if not using. I don't know where you find these except by looking at clips.
+chosenstreamid = 79156274 #chosenstreamid = 38788861632 #set to None if not using. This will usually match twitchtracker
+chosenvodid = 683421969 #set to None if not using. I don't know where you find these except by looking at clips.
 
 #full path to folder where the clips should be saved
-outputfolderpath = r"D:\Videos\MCYT\DSMP\Necromancy\2020-07-05 Ponk Restoration"
-streamtitle = "Minecraft but we have Lemonade"
+outputfolderpath = r"D:\Videos\MCYT\DSMP\Necromancy\2020-07-18 Tubbo Restoration"
+streamtitle = "Dream's SMP | Day 11 | Finished The Trading Hall!"
 starttime = 0 #first time in seconds t oinclude in restoration, put 0 by default
-maxtime = 5280 # last time in seconds to include in restoration, put None by default
+maxtime = 12900 # last time in seconds to include in restoration, put None by default
 checkbetween = True #whether to have it check seconds between ones listed in CSV, usually default True
-downloadnonoffsetclips = True #whether you _already have_ a CSV of non-offset-format clips, "nonoffsetclips.csv", to download in the working folder. You must make the folder and the file before running. Copy directly from original clips csv
-pause_at_end = True
+downloadnonoffsetclips = False #whether you _already have_ a CSV of non-offset-format clips, "nonoffsetclips.csv", to download in the working folder. You must make the folder and the file before running. Copy directly from original clips csv
+pause_at_end = False
 
 
 
